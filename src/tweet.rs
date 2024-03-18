@@ -50,3 +50,26 @@ pub async fn create(tweet_req: Json<TweetRequest>) -> HttpResponse {
         .content_type(APPLICATION_JSON)
         .json(tweet_req.to_tweet())
 }
+
+#[get("/tweets/{id}")]
+pub async fn get(path: Path<(String,)>) -> HttpResponse {
+    let found_tweet: Option<Tweet> = None;
+
+    match found_tweet {
+        Some(tweet) => HttpResponse::Ok()
+            .content_type(APPLICATION_JSON)
+            .json(tweet),
+        None => HttpResponse::NoContent()
+            .content_type(APPLICATION_JSON)
+            .await
+            .unwrap(),
+    }
+}
+
+#[delete("/tweets/{id}")]
+pub async fn delete(path: Path<(String,)>) -> HttpResponse {
+    HttpResponse::NoContent()
+        .content_type(APPLICATION_JSON)
+        .await
+        .unwrap()
+}
