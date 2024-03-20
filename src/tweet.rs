@@ -1,3 +1,20 @@
+use actix_web::web::{Data, Json, Path};
+use actix_web::{web, HttpResponse};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use diesel::result::Error;
+use diesel::{ExpressionMethods, Insertable, Queryable, RunQueryDsl};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::constants::{APPLICATION_JSON, CONNECTION_POOL_ERROR};
+use crate::like::{list_likes, Like};
+use crate::response::Response;
+use crate::{DBPool, DBPooledConnection};
+
+use super::schema::tweets;
+use diesel::query_dsl::methods::{FilterDsl, LimitDsl, OrderDsl};
+use std::str::FromStr;
+
 pub type Tweets = Response<Tweet>;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -5,7 +22,7 @@ pub struct Tweet {
     pub id: String,
     pub created_at: DateTime<Utc>,
     pub message: String,
-    pub liked: Vec<Like>,
+    pub likes: Vec<Like>,
 }
 
 impl Tweet {
@@ -75,7 +92,7 @@ pub async fn delete(path: Path<(String,)>) -> HttpResponse {
 }
 
 fn list_tweets(total_tweets: i64, conn: &DBPooledConnection) -> Result<Tweets, Error> {
-    use create::schema::tweets::dsl::*;
+    use crate::schema::tweets::dsl::*;
 
     let _tweets = match tweets
         .order(created_at.desc())
@@ -95,7 +112,7 @@ fn list_tweets(total_tweets: i64, conn: &DBPooledConnection) -> Result<Tweets, E
 }
 
 fn find_tweet(_id: Uuid, conn: &DBPooledConnection) -> Result<Tweet, Error> {
-    use create::schema::tweets::dsl::*;
+    use crate::schema::tweets::dsl::*;
 
     let res = tweets.filter(id.eq(_id)).load::<TweetDB>(conn);
     match res {
@@ -108,7 +125,7 @@ fn find_tweet(_id: Uuid, conn: &DBPooledConnection) -> Result<Tweet, Error> {
 }
 
 fn create_tweet(tweet: Tweet, conn: &DBPooledConnection) -> Result<Tweet, Error> {
-    use create::schema::tweets::dsl::*;
+    use crate::schema::tweets::dsl::*;
 
     let tweet_db = tweet::to_tweet_db();
     let _ = diesel::insert_into(tweets).values(&tweet_db).execute(conn);
@@ -117,7 +134,7 @@ fn create_tweet(tweet: Tweet, conn: &DBPooledConnection) -> Result<Tweet, Error>
 }
 
 fn delete_tweet(_id: Uuid, conn: &DBPooledConnection) -> Result<(), Error> {
-    use create::schema::tweets::dsl::*;
+    use crate::schema::tweets::dsl::*;
 
     let res = diesel::delete(tweets.filter(id.eq(_id))).execute(conn);
     match res {

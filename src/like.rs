@@ -1,5 +1,20 @@
-pub type Likes = Response<Like>;
+use actix_web::web::{Data, Path};
+use actix_web::{web, HttpResponse};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use diesel::{ExpressionMethods, Insertable, Queryable, RunQueryDsl};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
+use crate::constants::{APPLICATION_JSON, CONNECTION_POOL_ERROR};
+use crate::response::Response;
+use crate::{DBPool, DBPooledConnection};
+
+use super::schema::likes;
+use diesel::query_dsl::methods::{FilterDsl, OrderDsl};
+use diesel::result::Error;
+use std::str::FromStr;
+
+pub type Likes = Response<Like>;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Like {
     pub id: String,
@@ -11,6 +26,31 @@ impl Like {
         Self {
             id: Uuid::new_v4().to_string(),
             created_at: Utc::now(),
+        }
+    }
+
+    pub fn to_like_db(&self, tweet_id: Uuid) -> LikeDB {
+        LikeDB {
+            id: Uuid::from_str(self.id.as_str()).unwrap(),
+            created_at: self.created_at.naive_utc(),
+            tweet_id,
+        }
+    }
+}
+
+#[table_name = "likes"]
+#[derive(Queryable, Insertable)]
+pub struct LikeDB {
+    pub id: Uuid,
+    pub created_at: NaiveDateTime,
+    pub tweet_id: Uuid
+}
+
+impl LikeDB {
+    pub fn to_like(&self) -> Like {
+        Like {
+            id: self.id.to_string(),
+            created_at: Utc.from_utc_datetime(&self.created_at),
         }
     }
 }
@@ -42,7 +82,7 @@ pub async fn minus_one(path: Path<(String,)>) -> HttpResponse {
 }
 
 pub fn list_likes(_tweet_id: Uuid, conn: &DBPooledConnection) -> Result<Likes, Error> {
-    use create::schema::likes::dsl::*;
+    use crate::schema::likes::dsl::*;
 
     let _likes: Vec<LikeDB> = match likes
         .filter(tweet_id.eq(_tweet_id))
@@ -62,7 +102,7 @@ pub fn list_likes(_tweet_id: Uuid, conn: &DBPooledConnection) -> Result<Likes, E
 }
 
 pub fn create_like(_tweet_id: Uuid, conn: &DBPooledConnection) -> Result<Like, Error> {
-    use create::schema::likes::dsl::*;
+    use crate::schema::likes::dsl::*;
 
     let like = Like::new();
     let _ = diesel::insert_into(likes)
@@ -73,7 +113,7 @@ pub fn create_like(_tweet_id: Uuid, conn: &DBPooledConnection) -> Result<Like, E
 }
 
 pub fn delete_like(_tweet_id: Uuid, conn: &DBPooledConnection) -> Result<(), Error> {
-    use create::schema::likes::dsl::*;
+    use crate::schema::likes::dsl::*;
 
     let _likes = list_likes(_tweet_id, conn);
 

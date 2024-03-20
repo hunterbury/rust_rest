@@ -1,8 +1,23 @@
+#[macro_use]
+extern crate actix_web;
+#[macro_use]
+extern crate diesel;
+
 use std::{env, io};
 
 use actix_web::{middleware, App, HttpServer};
-use diesel::{r2d2::ConnectionManager, PgConnection};
+use diesel::r2d2::ConnectionManager;
+use diesel::PgConnection;
+use r2d2::{Pool, PooledConnection};
 
+mod constants;
+mod like;
+mod response;
+mod schema;
+mod tweet;
+
+pub type DBPool = Pool<ConnectionManager<PgConnection>>;
+pub type DBPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "actix_web=debug,actix_server=info");
