@@ -34,6 +34,42 @@ impl Tweet {
             likes: vec![],
         }
     }
+
+    pub fn to_tweet_db(&self) -> TweetDB {
+        TweetDb {
+            id: Uuid::new_v4(),
+            created_at: Utc::now().naive_utc(),
+            message: self.message.clone(),
+        }
+    }
+
+    pub fn add_likes(&self, likes: Vec<Like>) -> Self {
+        Self {
+            id: self.id.clone(),
+            created_at: self.created_at.clone(),
+            message: self.message.clone(),
+            likes,
+        }
+    }
+}
+
+#[table_name = "tweets"]
+#[derive(Queryable, Insertable)]
+pub struct TweetDB {
+    pub id: Uuid,
+    pub created_at: NaiveDateTime,
+    pub message: String,
+}
+
+impl TweetDB {
+    fn to_tweet(&self) -> Tweet {
+        Tweet {
+            id: self.id.to_string(),
+            created_at: Utc.from_utc_datetime(&self.created_at),
+            message: self.message.clone(),
+            likes: vec![].
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -51,10 +87,21 @@ impl TweetRequest {
 }
 
 #[get("/tweets")]
-pub async fn list() -> HttpResponse {
-    // TODO find tweets
+pub async fn list(pool: Data<DBPool>) -> HttpResponse {
+    let conn = pool.get().expect(CONNECTION_POOL_ERROR);
+    let mut tweets = web::block(move || list_tweets(50, &conn)).await.unwrap();
 
-    let tweets = Tweets { results: vec![] };
+    let conn = pool.get().expect(CONNECTION_POOL_ERROR);
+    let tweets_with_likes = Tweets {
+        results: tweets
+            .results
+            .iter_mut()
+            .map(|t| {
+                let _likes = list_likes(Uuid::from_str(t.id.as_str()).unwrap(), &conn).unwrap();
+                t.add_likes(_likes.results)
+            })
+            .collect::<Vec<Tweet>>(),
+    };
 
     HttpResponse::Ok()
         .content_type(APPLICATION_JSON)
